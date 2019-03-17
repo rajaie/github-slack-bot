@@ -1,5 +1,3 @@
-# xoxb-575919720416-579260938805-3oUcfOwL99Oj8bHZSPk0lQwE
-
 import os
 from utils import slack
 from utils import git
