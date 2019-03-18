@@ -22,7 +22,7 @@ class SlackBot:
 
     # TODO: extend is_bot_message() to allow bot mentions anywhere in the message
     @staticmethod
-    def is_bot_message(bot_user_id, message):
+    def is_bot_mention(bot_user_id, message):
         """Check if the message mentions the bot_user_id at
         the start of the message and includes a body
         :param bot_user_id: bot's user ID to search for
@@ -80,22 +80,21 @@ class SlackBot:
     def __init__(self, slack_api_token, git_client):
         self.git_client = git_client
         self.slack_api_token = slack_api_token
-        self.bot_user_id = None
-        self.sc = None
-
         self.sc = SlackClient(self.slack_api_token)
-        self.set_bot_user_id()
+        self.bot_user_id = self.get_bot_user_id()
+
         logger.info("Slack bot initialized")
 
-    def set_bot_user_id(self):
+    def get_bot_user_id(self):
         """Make an auth.test Slack API call to retrieve the bot's user_id.
         Stores the user_id in the "bot_user_id" instance attribute
-        :return: None
+        :return: Bot user_id on success, raise an exception otherwise
         """
         auth_test_res = self.sc.api_call("auth.test")
         if auth_test_res["ok"]:
-            self.bot_user_id = auth_test_res['user_id']
-            logger.info("Found bot's user_id: {}".format(self.bot_user_id))
+            bot_user_id = auth_test_res['user_id']
+            logger.info("Found bot's user_id: {}".format(bot_user_id))
+            return bot_user_id
         else:
             auth_test_error = auth_test_res["error"]
             logger.error("Failed to retrieve bot's user_id due to: {}"
@@ -121,7 +120,7 @@ class SlackBot:
 
         msg = event['text']
 
-        if not SlackBot.is_bot_message(self.bot_user_id, msg):
+        if not SlackBot.is_bot_mention(self.bot_user_id, msg):
             return
 
         logger.info("Received a message "
