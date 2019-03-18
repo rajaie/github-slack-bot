@@ -1,5 +1,6 @@
 import logging
 import re
+import time
 from slackclient import SlackClient
 from slackclient.client import SlackNotConnected
 
@@ -37,7 +38,7 @@ class SlackBot:
     # TODO: add ability to add assignees,labels, projects, milestones to Issues
     @staticmethod
     def parse_bot_message(msg):
-        """Parse a message mentioning our bot
+        """Parse a message mentioning our bot.
         :param msg: message sent by user
         :return: A dict with the issue title and body if they exist,
         a dict with an error message otherwise
@@ -45,36 +46,45 @@ class SlackBot:
                 {"ok": True, "issue_title": "Issue title here", "issue_body": "Issue body here"}
                 {"ok": False, "error": "Error message goes here"}
         """
+        error_response = {
+            "ok": False,
+            "error": "Failed to parse message. Message format should be: 'Issue title__Issue body'."
+                     " Your issue title or body may not contain double underscores (__)"
+        }
+
         msg_regex = "^<@(.+?)> (.*)"
-        matches = re.search(msg_regex, msg)
-        msg_body = matches.group(2).strip()
+        matches = re.search(msg_regex, msg.strip())
+
+        if len(matches.groups()) != 2:
+            return error_response
+
+        # TODO: implement a more robust message format to allow users to include
+        #  '__' in their issue title or issue body
+        msg_body = matches.group(2)
         msg_body_split = msg_body.split("__")
-        logger.debug("Split message into {}".format(msg_body_split))
+        logger.debug("Split message {} into {}".format(msg_body, msg_body_split))
 
-        if len(msg_body_split) == 2:
-            issue_title = msg_body_split[0]
-            issue_body = msg_body_split[1]
-            res = {
-                "ok": True,
-                "issue_title": "{}".format(issue_title),
-                "issue_body": "{}".format(issue_body)
-            }
-        else:
-            res = {
-                "ok": False,
-                "error": "Failed to parse message. Issue title and issue body should be "
-                         "separated by a double underscore (__)"
-            }
+        if len(msg_body_split) != 2:
+            return error_response
 
-        logger.info(res)
+        issue_title = msg_body_split[0]
+        issue_body = msg_body_split[1]
+        res = {
+            "ok": True,
+            "issue_title": "{}".format(issue_title),
+            "issue_body": "{}".format(issue_body)
+        }
+
         return res
 
-    def __init__(self, slack_api_token=None, git_client=None):
+    def __init__(self, slack_api_token, git_client):
         self.git_client = git_client
         self.slack_api_token = slack_api_token
         self.bot_user_id = None
         self.sc = None
 
+        self.sc = SlackClient(self.slack_api_token)
+        self.set_bot_user_id()
         logger.info("Slack bot initialized")
 
     def set_bot_user_id(self):
@@ -98,40 +108,49 @@ class SlackBot:
         :param event: Slack RTM event
         :return: None
         """
-        if "type" in event and event["type"] == "message" and "subtype" not in event:
-            msg = event['text']
-            channel = event["channel"]
+        def is_event_a_message(event):
+            """Helper method to check whether an RTM event is a message.
+            We don't care about messages with subtypes (e.g. XYZ joined a channel)
+            """
+            return "type" in event \
+                   and event["type"] == "message" \
+                   and "subtype" not in event
 
-            if SlackBot.is_bot_message(self.bot_user_id, msg):
-                logger.info("Received a message "
-                            "mentioning our bot: '{}'".format(msg))
-                parsed_msg = SlackBot.parse_bot_message(msg)
+        if not is_event_a_message(event):
+            return
 
-                if parsed_msg["ok"]:
-                    git_res = self.git_client.create_issue(parsed_msg["issue_title"],
-                                                           parsed_msg["issue_body"])
-                    if git_res["ok"]:
-                        res = "GitHub issue created successfully: {}".format(git_res["link"])
-                    else:
-                        res = "Failed to create issue: {}".format(git_res["error"])
-                else:
-                    res = parsed_msg["error"]
+        msg = event['text']
 
-                self.sc.rtm_send_message(channel, res)
+        if not SlackBot.is_bot_message(self.bot_user_id, msg):
+            return
+
+        logger.info("Received a message "
+                    "mentioning our bot: '{}'".format(msg))
+        parsed_msg = SlackBot.parse_bot_message(msg)
+
+        if parsed_msg["ok"]:
+            git_res = self.git_client.create_issue(parsed_msg["issue_title"],
+                                                   parsed_msg["issue_body"])
+            if git_res["ok"]:
+                res = "GitHub issue created successfully: {}".format(git_res["link"])
+            else:
+                res = "Failed to create issue: {}".format(git_res["error"])
+        else:
+            res = parsed_msg["error"]
+
+        self.sc.rtm_send_message(event["channel"], res)
 
     # TODO: change bot implementation to use events API so we can scale horizontally
     def start_bot(self):
         """Creates a connection to the RTM API and listens for events in an infinite loop
         :return: None
         """
-        self.sc = SlackClient(self.slack_api_token)
-        self.set_bot_user_id()
-
         if self.sc.rtm_connect(auto_reconnect=True):
             logger.info("Slack client connected to RTM API")
             while True:
                 try:
                     slack_events = self.sc.rtm_read()
+                    time.sleep(RTM_READ_INTERVAL)
                 except SlackNotConnected:
                     logger.error("Failed to read from RTM API, the connection "
                                  "may have been dropped")
