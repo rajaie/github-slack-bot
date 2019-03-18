@@ -55,7 +55,7 @@ class SlackBot:
         msg_regex = "^<@(.+?)> (.*)"
         matches = re.search(msg_regex, msg.strip())
 
-        if len(matches.groups()) != 2:
+        if not matches or len(matches.groups()) != 2:
             return error_response
 
         # TODO: implement a more robust message format to allow users to include
