@@ -3,13 +3,9 @@ import re
 import time
 from slackclient import SlackClient
 from slackclient.client import SlackNotConnected
+from slackclient.server import SlackLoginError
 
-# TODO: Allow log level to be passed in as an application parameter
-logging.basicConfig(
-    format="%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d:%(funcName)s] %(message)s",
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
 
 RTM_READ_INTERVAL = 1  # Number of seconds to wait between each rtm_read() call
 EXCEPTION_DEFAULT_MSG = "Something unexpected occurred, see ERROR log and Traceback above"
@@ -99,7 +95,7 @@ class SlackBot:
             auth_test_error = auth_test_res["error"]
             logger.error("Failed to retrieve bot's user_id due to: {}"
                          .format(auth_test_error))
-            raise Exception(EXCEPTION_DEFAULT_MSG)
+            raise SlackLoginError()
 
     # TODO: extend handle_rtm_event() to handle different commands, such as "update-issue", "open-pr"
     def handle_rtm_event(self, event):
@@ -160,4 +156,3 @@ class SlackBot:
         else:
             logger.error("Slack client failed to connect to RTM API, this might"
                          "be due to an invalid API token or a connection issue")
-            raise Exception(EXCEPTION_DEFAULT_MSG)
