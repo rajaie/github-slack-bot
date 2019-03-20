@@ -10,7 +10,7 @@ class GitClient():
         self.gc = Github(github_api_token)
         self.github_repo = self.gc.get_repo(github_repo)
 
-        logger.info("GitHub client intialized")
+        logger.info("GitHub client initialized")
 
     def create_issue(self, issue_title, issue_body):
         try:
