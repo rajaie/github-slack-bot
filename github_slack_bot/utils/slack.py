@@ -124,14 +124,17 @@ class SlackBot:
         parsed_msg = SlackBot.parse_bot_message(msg)
 
         if parsed_msg["ok"]:
-            git_res = self.git_client.create_issue(parsed_msg["issue_title"],
-                                                   parsed_msg["issue_body"])
+            git_res = self.git_client.create_issue(parsed_msg["issue_title"].strip(),
+                                                   parsed_msg["issue_body"].strip())
             if git_res["ok"]:
                 res = "GitHub issue created successfully: {}".format(git_res["link"])
+                logger.info(res)
             else:
                 res = "Failed to create issue: {}".format(git_res["error"])
+                logger.error(res)
         else:
             res = parsed_msg["error"]
+            logger.error(res)
 
         self.sc.rtm_send_message(event["channel"], res)
 
