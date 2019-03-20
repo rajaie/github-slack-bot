@@ -63,8 +63,8 @@ class SlackBot:
         if len(msg_body_split) != 2:
             return error_response
 
-        issue_title = msg_body_split[0]
-        issue_body = msg_body_split[1]
+        issue_title = msg_body_split[0].strip()
+        issue_body = msg_body_split[1].strip()
         res = {
             "ok": True,
             "issue_title": "{}".format(issue_title),
@@ -124,8 +124,8 @@ class SlackBot:
         parsed_msg = SlackBot.parse_bot_message(msg)
 
         if parsed_msg["ok"]:
-            git_res = self.git_client.create_issue(parsed_msg["issue_title"].strip(),
-                                                   parsed_msg["issue_body"].strip())
+            git_res = self.git_client.create_issue(parsed_msg["issue_title"],
+                                                   parsed_msg["issue_body"])
             if git_res["ok"]:
                 res = "GitHub issue created successfully: {}".format(git_res["link"])
                 logger.info(res)
